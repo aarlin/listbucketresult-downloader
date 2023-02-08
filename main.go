@@ -333,10 +333,10 @@ func (m *model) preloadLastInputs() {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	lineNumber := 1
+	lineNumber := 0
 	for scanner.Scan() {
 		if lineNumber < len(m.inputs) {
-			m.inputs[lineNumber], _ = m.inputs[lineNumber].Update(scanner.Text())
+			m.inputs[lineNumber].SetValue(scanner.Text())
 			lineNumber++
 		}
 	}
