@@ -13,6 +13,8 @@ import (
 	"strings"
 	"os"
 	"path"
+
+	utils "github.com/aarlin/listbucketresult-downloader/utils"
 )
 
 
@@ -117,15 +119,23 @@ func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query stri
 			return nil, fmt.Errorf("There wasn't any resources found: %w", err)
 		}
 
-		for _, content := range contents {
-			if !strings.Contains(content.Key, ignoreText) || ignoreText == "" {
-				resources = append(resources, fmt.Sprintf("%s%s", bucketUrl, url.QueryEscape(content.Key)))
-			}
+		re, err := regexp.Compile(ignoreText)
+		if err != nil {
 		}
 
-		re := regexp.MustCompile(`(?i)marker=(\w+)`)
+		for _, content := range contents {
+			if ignoreText == "" {
+				resources = append(resources, fmt.Sprintf("%s%s", bucketUrl, url.QueryEscape(content.Key)))
+			} else if utils.IsRegex(ignoreText) && !re.MatchString(content.Key) {
+				resources = append(resources, fmt.Sprintf("%s%s", bucketUrl, url.QueryEscape(content.Key)))
+			} else if !re.MatchString(content.Key) {
+				resources = append(resources, fmt.Sprintf("%s%s", bucketUrl, url.QueryEscape(content.Key)))
+			} 
+		}
+
+		markerRe := regexp.MustCompile(`(?i)marker=(\w+)`)
 		lastKeyOffset := contents[len(contents) - 1].Key
-		query = re.ReplaceAllString(query, "marker=" + lastKeyOffset)
+		query = markerRe.ReplaceAllString(query, "marker=" + lastKeyOffset)
 		// hasMoreResults, _ = strconv.ParseBool(bucket.IsTruncated)
 		hasMoreResults = false
 	}
