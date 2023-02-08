@@ -53,6 +53,10 @@ type ListBucketError struct {
 	Message string   `xml:"Message"`
 }
 
+var illegalChars = []string{`<`, `>`, `:`, `"`, `/`, `\`, `|`, `?`, `*`}
+var reservedFilenames = []string{`CON`, `PRN`, `AUX`, `NUL`, `COM1`, `COM2`, `COM3`, `COM4`, `COM5`, `COM6`, `COM7`, `COM8`, `COM9`,
+	`LPT1`, `LPT2`, `LPT3`, `LPT4`, `LPT5`, `LPT6`, `LPT7`, `LPT8`, `LPT9`}
+
 func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query string, cookieUrl string, ignoreText string) ([]string, error) {
 	cookies, err := retrieveCookies(cookieUrl)
 
@@ -129,20 +133,40 @@ func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query stri
 	return resources, nil
 }
 
-func (mw* Client) DownloadResource(ctx context.Context, url string, cookieUrl string) (string, error) {
-	fileName := path.Base(url)
+func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cookieUrl string) (string, error) {
+	fileName := path.Base(resourceUrl)
 
-	_, err := os.Stat("resources/" + fileName)
-	if err == nil {
-		// File exists already
-		return url, err
+	fileName, err := url.QueryUnescape(fileName)
+	if err != nil {
+		return resourceUrl, err
 	}
 
+	for _, illegalChar := range illegalChars {
+		fileName = strings.ReplaceAll(fileName, illegalChar, "")
+	}
+
+	// Remove reserved filenames
+	for _, reserved := range reservedFilenames {
+		if strings.EqualFold(fileName, reserved) {
+			fileName = ""
+			break
+		}
+	}
+
+	if len(fileName) > 255 {
+		fileName = fileName[:255]
+	}
+
+	_, err = os.Stat("resources/" + fileName)
+	if err == nil {
+		// File exists already
+		return resourceUrl, err
+	}
 
 	cookies, err := retrieveCookies(cookieUrl) // make this a singleton
 
 	if err != nil {
-		return url, err
+		return resourceUrl, err
 	}
 
 	jar, err := cookiejar.New(nil)
@@ -152,20 +176,20 @@ func (mw* Client) DownloadResource(ctx context.Context, url string, cookieUrl st
 
 	mw.HTTPClient.Jar = jar
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceUrl, nil)
     if err != nil {
-		return url, err
+		return resourceUrl, err
     }
 
 	jar.SetCookies(req.URL, cookies)
 
 	resp, err := mw.HTTPClient.Do(req)
 	if err != nil {
-		return url, err
+		return resourceUrl, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return url, err
+		return resourceUrl, err
 	}
 
     defer resp.Body.Close()
@@ -178,16 +202,16 @@ func (mw* Client) DownloadResource(ctx context.Context, url string, cookieUrl st
 
     file, err := os.Create("resources/" + fileName)
     if err != nil {
-		return url, err
+		return resourceUrl, err
     }
     defer file.Close()
 
     _, err = io.Copy(file, resp.Body)
     if err != nil {
-		return url, err
+		return resourceUrl, err
     }
 
-	return url, nil
+	return resourceUrl, nil
 }
 
 func retrieveCookies(cookieUrl string) ([]*http.Cookie, error) {
