@@ -1,4 +1,4 @@
-module listbucketresult-downloader/m/v2
+module github.com/aarlin/listbucketresult-downloader
 
 go 1.20
 

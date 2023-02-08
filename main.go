@@ -2,16 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
-	"encoding/csv"
-	// "time"
+	"bufio"
 
 	"github.com/aarlin/listbucketresult-downloader/client"
-	"github.com/aarlin/listbucketresult-downloader/utils"
+	utils "github.com/aarlin/listbucketresult-downloader/utils"
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -33,10 +33,10 @@ var (
 	focusedCursor         = focusedStyle.Copy().Render(">")
 	checkedSelectionStyle = focusedStyle.Copy().Render("✓")
 
-	currentPkgNameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("211"))
-	doneStyle           = lipgloss.NewStyle().Margin(1, 2)
-	checkMark           = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
-	failMark            = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).SetString("X")
+	currentUrlStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("211"))
+	doneStyle       = lipgloss.NewStyle().Margin(1, 2)
+	checkMark       = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
+	failMark        = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).SetString("X")
 )
 
 type statusMsg int
@@ -63,12 +63,12 @@ type DownloadResourceResp struct {
 }
 
 func (m model) Init() tea.Cmd {
-	cmds := make([]tea.Cmd, 2)
+	m.preloadLastInputs()
 
-	cmds[0] = textinput.Blink
-	cmds[1] = m.spinner.Tick
-
-	return tea.Batch(cmds...)
+	return tea.Batch(
+		textinput.Blink,
+		m.spinner.Tick,
+	)
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -84,13 +84,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Did the user press enter while the submit button was focused?
 				// If so, exit.
 				if s == "enter" && m.focusIndex == len(m.inputs) {
-					cmd := m.updateInputs(msg)
-
 					m.showTypingView = false
-					m.showChoicesView = true
+					m.showLoadingView = true
 					m.focusIndex = 0
 
-					return m, cmd
+					m.saveInputs()
+
+					return m, tea.Batch(
+						spinner.Tick,
+						m.fetchResources(),
+					)
 				}
 
 				// Cycle indexes
@@ -122,34 +125,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				return m, nil
-			} else if m.showChoicesView {
-				if s == "up" || s == "k" {
-					if m.cursor > 0 {
-						m.cursor--
-					}
-				}
-
-				if s == "down" || s == "j" {
-					if m.cursor < len(m.choices) {
-						m.cursor++
-					}
-				}
-
-				if s == "enter" && m.cursor == len(m.choices)-1 {
-
-					m.showChoicesView = false
-					m.showLoadingView = true
-					m.cursor = 0
-
-					return m, tea.Batch(
-						spinner.Tick,
-						m.fetchResources(),
-					)
-				}
-
-				if s == "enter" || s == " " {
-					m.choices[m.cursor].checked = !m.choices[m.cursor].checked
-				}
 			}
 
 		}
@@ -189,20 +164,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.downloadCount >= len(m.resources) {
 			// Everything's been installed. We're done!
 			m.finishedDownloading = true
-			file, err := os.OpenFile("lastDownloadIndex.csv", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-			if err != nil {
-				panic(err)
-			}
-			defer file.Close()
-		
-			// Create a new writer for the CSV file
-			writer := csv.NewWriter(file)
-			defer writer.Flush()
-		
-			// Write the values talentId and key to the CSV file
-			if err := writer.Write([]string{m.inputs[0].Value(), m.resources[m.downloadCount-1]}); err != nil {
-				panic(err)
-			}
 			return m, tea.Quit
 		}
 
@@ -233,9 +194,9 @@ func (m model) View() string {
 	s := ""
 
 	if m.showLoadingView {
-		userId := m.inputs[0].Value()
-		keyOffset := m.inputs[1].Value()
-		spinnerText := fmt.Sprintf("Retrieving resource paths from user id: %s and key offset: %s, please wait ... \n\n", userId, keyOffset)
+		url := m.inputs[0].Value()
+		keyOffset := m.inputs[3].Value()
+		spinnerText := fmt.Sprintf("Retrieving resource paths from user id: %s and key offset: %s, please wait ... \n\n", url, keyOffset)
 
 		s += "\n" +
 			m.spinner.View() + spinnerText
@@ -253,12 +214,12 @@ func (m model) View() string {
 
 		spin := m.spinner.View() + " "
 		prog := m.progress.View()
-		cellsAvail := max(0, m.width-lipgloss.Width(spin+prog+resourceCount))
+		cellsAvail := utils.Max(0, m.width-lipgloss.Width(spin+prog+resourceCount))
 
-		pkgName := currentPkgNameStyle.Render(m.resources[m.downloadCount])
-		info := lipgloss.NewStyle().MaxWidth(cellsAvail).Render("Downloading " + pkgName)
+		url := currentUrlStyle.Render(m.resources[m.downloadCount])
+		info := lipgloss.NewStyle().MaxWidth(cellsAvail).Render("Downloading " + url)
 
-		cellsRemaining := max(0, m.width-lipgloss.Width(spin+info+prog+resourceCount))
+		cellsRemaining := utils.Max(0, m.width-lipgloss.Width(spin+info+prog+resourceCount))
 		gap := strings.Repeat(" ", cellsRemaining)
 
 		s += spin + info + gap + prog + resourceCount
@@ -299,7 +260,7 @@ func (m *model) listenForActivity(sub chan DownloadResourceResp) tea.Cmd {
 			if m.downloadIndex >= len(m.resources)-1 {
 				break
 			}
-			msg, err := m.cdn.DownloadResource(context.Background(), m.resources[m.downloadIndex])
+			msg, err := m.client.DownloadResource(context.Background(), m.resources[m.downloadIndex], m.inputs[1].Value())
 			sub <- DownloadResourceResp{Err: err, Msg: msg, Index: m.downloadIndex}
 			m.downloadIndex++
 		}
@@ -314,13 +275,15 @@ func waitForActivity(sub chan DownloadResourceResp) tea.Cmd {
 	}
 }
 
-
 func (m *model) fetchResources() tea.Cmd {
 
-	bucketQuery := buildBucketQuery(m.choices, m.inputs)
+	url := m.inputs[0].Value()
+	cookieUrl := m.inputs[1].Value()
+	bucketQuery := buildBucketQuery(m.inputs)
+	ignoreText := m.inputs[4].Value()
 
 	return func() tea.Msg {
-		resources, err := m.cdn.SearchBucket(context.Background(), bucketQuery)
+		resources, err := m.client.SearchBucket(context.Background(), url, bucketQuery, cookieUrl, ignoreText)
 		if err != nil {
 			return GotResources{Err: err, Resources: resources}
 		}
@@ -340,15 +303,70 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func buildBucketQuery(choices []item, inputs []textinput.Model) string {
-	bucketQuery := fmt.Sprintf("%s?prefix=%s&marker=%s", inputs[0].Value(), inputs[2].Value(), inputs[3].Value())
+func (m *model) saveInputs() {
+	// Create or overwrite the file
+	file, err := os.Create("last-inputs.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	// Write each element of the slice in a new line
+	w := bufio.NewWriter(file)
+	for _, line := range m.inputs {
+		_, err := w.WriteString(line.Value() + "\n")
+		if err != nil {
+			panic(err)
+		}
+	}
+	w.Flush()
+}
+
+func (m *model) preloadLastInputs() {
+	// Open the file
+	file, err := os.Open("last-inputs.txt")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lineNumber := 1
+	for scanner.Scan() {
+		m.inputs[lineNumber], _ = m.inputs[lineNumber].Update(scanner.Text())
+		lineNumber++
+	}
+	if err := scanner.Err(); err != nil {
+		panic(err)
+	}
+}
+
+func (m* model) saveLastDownloadKey() {
+	file, err := os.OpenFile("last-download-key.csv", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	// Create a new writer for the CSV file
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write the values talentId and key to the CSV file
+	if err := writer.Write([]string{m.inputs[0].Value(), m.resources[m.downloadCount-1]}); err != nil {
+		panic(err)
+	}
+}
+
+func buildBucketQuery(inputs []textinput.Model) string {
+	bucketQuery := fmt.Sprintf("?prefix=%s&marker=%s", inputs[2].Value(), inputs[3].Value())
 	return bucketQuery
 }
 
 type model struct {
-	cursor  int
-	err     error
-	sub     chan DownloadResourceResp
+	cursor int
+	err    error
+	sub    chan DownloadResourceResp
 
 	focusIndex int
 	inputs     []textinput.Model
@@ -370,7 +388,7 @@ type model struct {
 
 	progress progress.Model
 
-	http *http.Client
+	client *client.Client
 }
 
 func initialModel() model {
@@ -388,7 +406,7 @@ func initialModel() model {
 		err: nil,
 		sub: make(chan DownloadResourceResp),
 
-		inputs: make([]textinput.Model, 2),
+		inputs: make([]textinput.Model, 5),
 
 		spinner:             s,
 		progress:            p,
@@ -398,9 +416,9 @@ func initialModel() model {
 		showErrorView:       false,
 		downloadIndex:       0,
 		downloadCount:       0,
-		lastDownloadKey: 	 "",
+		lastDownloadKey:     "",
 
-		http: &http.Client{HTTPClient: http.DefaultClient},
+		client: &client.Client{HTTPClient: http.DefaultClient},
 	}
 
 	var t textinput.Model
@@ -410,12 +428,12 @@ func initialModel() model {
 		t.CharLimit = 32
 
 		switch i {
-		case 1:
+		case 0:
 			t.Placeholder = "Bucket URL"
 			t.Focus()
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
-		case 2: 
+		case 1:
 			t.Placeholder = "Site to grab bucket cookie authorizations"
 			t.CharLimit = 120
 		case 2:
@@ -425,7 +443,7 @@ func initialModel() model {
 			t.Placeholder = "Start download marker"
 			t.CharLimit = 120
 		case 4:
-			t.Placeholder = "Files to ignore regex" 
+			t.Placeholder = "Files to ignore regex"
 			t.CharLimit = 120
 		}
 
