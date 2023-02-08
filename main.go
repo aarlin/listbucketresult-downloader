@@ -198,7 +198,7 @@ func (m model) View() string {
 	if m.showLoadingView {
 		url := m.inputs[0].Value()
 		keyOffset := m.inputs[3].Value()
-		spinnerText := fmt.Sprintf("Retrieving resource paths from user id: %s and key offset: %s, please wait ... \n\n", url, keyOffset)
+		spinnerText := fmt.Sprintf("Retrieving resource paths from: %s and key offset: %s, please wait ... \n\n", url, keyOffset)
 
 		s += "\n" +
 			m.spinner.View() + spinnerText
@@ -207,7 +207,7 @@ func (m model) View() string {
 	if m.showDownloadingView {
 		n := len(m.resources)
 		w := lipgloss.Width(fmt.Sprintf("%d", n))
-		
+
 		if m.finishedDownloading || n == 0 {
 			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n))
 		}
