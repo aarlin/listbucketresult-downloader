@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"bufio"
 
 	"github.com/aarlin/listbucketresult-downloader/client"
 	utils "github.com/aarlin/listbucketresult-downloader/utils"
@@ -134,7 +134,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if err := msg.Err; err != nil {
 			m.err = err
-			return m, nil
+			return m, tea.Batch(
+				tea.Printf("Error occured: %s\n", err),
+			)
 		}
 
 		m.resources = msg.Resources
@@ -205,8 +207,8 @@ func (m model) View() string {
 	if m.showDownloadingView {
 		n := len(m.resources)
 		w := lipgloss.Width(fmt.Sprintf("%d", n))
-
-		if m.finishedDownloading {
+		
+		if m.finishedDownloading || n == 0 {
 			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n))
 		}
 
@@ -277,13 +279,13 @@ func waitForActivity(sub chan DownloadResourceResp) tea.Cmd {
 
 func (m *model) fetchResources() tea.Cmd {
 
-	url := m.inputs[0].Value()
+	bucketUrl := m.inputs[0].Value()
 	cookieUrl := m.inputs[1].Value()
 	bucketQuery := buildBucketQuery(m.inputs)
 	ignoreText := m.inputs[4].Value()
 
 	return func() tea.Msg {
-		resources, err := m.client.SearchBucket(context.Background(), url, bucketQuery, cookieUrl, ignoreText)
+		resources, err := m.client.SearchBucket(context.Background(), bucketUrl, bucketQuery, cookieUrl, ignoreText)
 		if err != nil {
 			return GotResources{Err: err, Resources: resources}
 		}
@@ -333,15 +335,17 @@ func (m *model) preloadLastInputs() {
 	scanner := bufio.NewScanner(file)
 	lineNumber := 1
 	for scanner.Scan() {
-		m.inputs[lineNumber], _ = m.inputs[lineNumber].Update(scanner.Text())
-		lineNumber++
+		if lineNumber < len(m.inputs) {
+			m.inputs[lineNumber], _ = m.inputs[lineNumber].Update(scanner.Text())
+			lineNumber++
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		panic(err)
 	}
 }
 
-func (m* model) saveLastDownloadKey() {
+func (m *model) saveLastDownloadKey() {
 	file, err := os.OpenFile("last-download-key.csv", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
@@ -433,18 +437,19 @@ func initialModel() model {
 			t.Focus()
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
+			t.CharLimit = 150
 		case 1:
 			t.Placeholder = "Site to grab bucket cookie authorizations"
-			t.CharLimit = 120
+			t.CharLimit = 150
 		case 2:
 			t.Placeholder = "Bucket resource prefix"
-			t.CharLimit = 120
+			t.CharLimit = 150
 		case 3:
 			t.Placeholder = "Start download marker"
-			t.CharLimit = 120
+			t.CharLimit = 150
 		case 4:
 			t.Placeholder = "Files to ignore regex"
-			t.CharLimit = 120
+			t.CharLimit = 150
 		}
 
 		m.inputs[i] = t

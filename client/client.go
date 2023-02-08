@@ -5,16 +5,14 @@ import (
     "encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"net/http/cookiejar"
-	// "strconv"
 	"time"
 	"io"
 	"regexp"
 	"strings"
 	"os"
 	"path"
-
-	// tea "github.com/charmbracelet/bubbletea"
 )
 
 
@@ -55,7 +53,7 @@ type ListBucketError struct {
 	Message string   `xml:"Message"`
 }
 
-func (mw* Client) SearchBucket(ctx context.Context, url string, query string, cookieUrl string, ignoreText string) ([]string, error) {
+func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query string, cookieUrl string, ignoreText string) ([]string, error) {
 	cookies, err := retrieveCookies(cookieUrl)
 
 	if err != nil {
@@ -74,7 +72,7 @@ func (mw* Client) SearchBucket(ctx context.Context, url string, query string, co
 	resources := make([]string, 0)
 
 	for hasMoreResults {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url + query, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, bucketUrl + query, nil)
 		if err != nil {
 			return nil, fmt.Errorf("could not create bucket search http request: %w", err)
 		}
@@ -116,8 +114,8 @@ func (mw* Client) SearchBucket(ctx context.Context, url string, query string, co
 		}
 
 		for _, content := range contents {
-			if !strings.Contains(content.Key, ignoreText) {
-				resources = append(resources, fmt.Sprintf("%s/%s", url, content.Key))
+			if !strings.Contains(content.Key, ignoreText) || ignoreText == "" {
+				resources = append(resources, fmt.Sprintf("%s%s", bucketUrl, url.QueryEscape(content.Key)))
 			}
 		}
 
@@ -132,10 +130,9 @@ func (mw* Client) SearchBucket(ctx context.Context, url string, query string, co
 }
 
 func (mw* Client) DownloadResource(ctx context.Context, url string, cookieUrl string) (string, error) {
-	talentId := strings.Split(url, "/")[3] + "/"
 	fileName := path.Base(url)
 
-	_, err := os.Stat("resources/" + talentId + fileName)
+	_, err := os.Stat("resources/" + fileName)
 	if err == nil {
 		// File exists already
 		return url, err
@@ -173,13 +170,13 @@ func (mw* Client) DownloadResource(ctx context.Context, url string, cookieUrl st
 
     defer resp.Body.Close()
 
-	mkdirErr := os.MkdirAll("resources/" + talentId , os.ModePerm) 
+	mkdirErr := os.MkdirAll("resources/" , os.ModePerm) 
 
 	if mkdirErr != nil {
 		// TODO: ignore?
     }
 
-    file, err := os.Create("resources/" + talentId + fileName)
+    file, err := os.Create("resources/" + fileName)
     if err != nil {
 		return url, err
     }

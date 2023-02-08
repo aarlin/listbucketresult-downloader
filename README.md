@@ -2,6 +2,8 @@
 
 > Input ListBucketResult url to download resources from
 
+![](./assets/usage.gif)
+
 ## Explanation of Inputs
 
 | Input                                     | Explanation                                                       | Required |
