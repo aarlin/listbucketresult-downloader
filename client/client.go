@@ -143,7 +143,7 @@ func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query stri
 	return resources, nil
 }
 
-func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cookieUrl string) (string, error) {
+func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cookieUrl string, folderDir string) (string, error) {
 	fileName := path.Base(resourceUrl)
 
 	fileName, err := url.QueryUnescape(fileName)
@@ -167,7 +167,7 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 		fileName = fileName[:255]
 	}
 
-	_, err = os.Stat("resources/" + fileName)
+	_, err = os.Stat("resources/" + folderDir + "/" + fileName)
 	if err == nil {
 		// File exists already
 		return resourceUrl, err
@@ -204,13 +204,13 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 
     defer resp.Body.Close()
 
-	mkdirErr := os.MkdirAll("resources/" , os.ModePerm) 
+	mkdirErr := os.MkdirAll("resources/" + folderDir + "/" , os.ModePerm) 
 
 	if mkdirErr != nil {
 		// TODO: ignore?
     }
 
-    file, err := os.Create("resources/" + fileName)
+    file, err := os.Create("resources/" + folderDir + "/" + fileName)
     if err != nil {
 		return resourceUrl, err
     }

@@ -135,7 +135,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err := msg.Err; err != nil {
 			m.err = err
 			return m, tea.Batch(
-				tea.Printf("Error occured: %s\n", err),
+				tea.Printf("[GotResources]: error occured: %s\n", err),
 			)
 		}
 
@@ -208,8 +208,11 @@ func (m model) View() string {
 		n := len(m.resources)
 		w := lipgloss.Width(fmt.Sprintf("%d", n))
 
-		if m.finishedDownloading || n == 0 {
-			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n))
+		if n == 0 {
+			return doneStyle.Render(fmt.Sprintf("There were no resources downloaded.\n"))
+		}
+		if m.finishedDownloading {
+			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n - 1))
 		}
 
 		resourceCount := fmt.Sprintf(" %*d/%*d", w, m.downloadCount, w, n-1)
@@ -262,7 +265,9 @@ func (m *model) listenForActivity(sub chan DownloadResourceResp) tea.Cmd {
 			if m.downloadIndex >= len(m.resources)-1 {
 				break
 			}
-			msg, err := m.client.DownloadResource(context.Background(), m.resources[m.downloadIndex], m.inputs[1].Value())
+			cookieUrl := m.inputs[1].Value()
+			folderDir := m.inputs[5].Value()
+			msg, err := m.client.DownloadResource(context.Background(), m.resources[m.downloadIndex], cookieUrl, folderDir)
 			sub <- DownloadResourceResp{Err: err, Msg: msg, Index: m.downloadIndex}
 			m.downloadIndex++
 		}
@@ -410,7 +415,7 @@ func initialModel() model {
 		err: nil,
 		sub: make(chan DownloadResourceResp),
 
-		inputs: make([]textinput.Model, 5),
+		inputs: make([]textinput.Model, 6),
 
 		spinner:             s,
 		progress:            p,
@@ -449,6 +454,9 @@ func initialModel() model {
 			t.CharLimit = 150
 		case 4:
 			t.Placeholder = "Files to ignore regex"
+			t.CharLimit = 150
+		case 5:
+			t.Placeholder = "Folder to save to"
 			t.CharLimit = 150
 		}
 
