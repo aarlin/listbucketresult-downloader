@@ -284,7 +284,11 @@ func waitForActivity(sub chan DownloadResourceResp) tea.Cmd {
 
 func (m *model) fetchResources() tea.Cmd {
 
-	bucketUrl := m.inputs[0].Value()
+	bucketUrl := m.inputs[0].Value();
+	if bucketUrl[len(bucketUrl)-1:] != "/" {
+		bucketUrl += "/"
+	}
+
 	cookieUrl := m.inputs[1].Value()
 	bucketQuery := buildBucketQuery(m.inputs)
 	ignoreText := m.inputs[4].Value()
