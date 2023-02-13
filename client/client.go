@@ -176,7 +176,6 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 
 	_, err = os.Stat(storageDirectory + fileName)
 	if err == nil {
-		panic(err)
 		// File exists already
 		return resourceUrl, err
 	}
@@ -184,7 +183,6 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 	cookies, err := retrieveCookies(cookieUrl) // make this a singleton
 
 	if err != nil {
-		panic(err)
 		return resourceUrl, err
 	}
 
@@ -197,7 +195,6 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceUrl, nil)
     if err != nil {
-		panic(err)
 		return resourceUrl, err
     }
 
@@ -205,12 +202,10 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 
 	resp, err := mw.HTTPClient.Do(req)
 	if err != nil {
-		panic(err)
 		return resourceUrl, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		panic(err)
 		return resourceUrl, err
 	}
 
@@ -224,14 +219,12 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 
     file, err := os.Create(storageDirectory + fileName)
     if err != nil {
-		panic(err)
 		return resourceUrl, err
     }
     defer file.Close()
 
     _, err = io.Copy(file, resp.Body)
     if err != nil {
-		panic(err)
 		return resourceUrl, err
     }
 
