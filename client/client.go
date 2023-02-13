@@ -167,7 +167,13 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 		fileName = fileName[:255]
 	}
 
-	_, err = os.Stat("resources/" + folderDir + "/" + fileName)
+	storageDirectory := "resources/"
+
+	if folderDir != "" {
+		storageDirectory += folderDir + "/"
+	}
+
+	_, err = os.Stat(storageDirectory + fileName)
 	if err == nil {
 		// File exists already
 		return resourceUrl, err
@@ -204,13 +210,13 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 
     defer resp.Body.Close()
 
-	mkdirErr := os.MkdirAll("resources/" + folderDir + "/" , os.ModePerm) 
+	mkdirErr := os.MkdirAll(storageDirectory , os.ModePerm) 
 
 	if mkdirErr != nil {
 		// TODO: ignore?
     }
 
-    file, err := os.Create("resources/" + folderDir + "/" + fileName)
+    file, err := os.Create(storageDirectory + fileName)
     if err != nil {
 		return resourceUrl, err
     }
