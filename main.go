@@ -3,12 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"path"
 
 	"github.com/aarlin/listbucketresult-downloader/client"
 	utils "github.com/aarlin/listbucketresult-downloader/utils"
@@ -76,6 +76,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
+			m.saveInputs()
 			return m, tea.Quit
 		case "tab", "shift+tab", "enter", "up", "down", " ":
 			s := msg.String()
@@ -269,6 +270,7 @@ func (m *model) listenForActivity(sub chan DownloadResourceResp) tea.Cmd {
 			folderDir := m.inputs[5].Value()
 			msg, err := m.client.DownloadResource(context.Background(), m.resources[m.downloadIndex], cookieUrl, folderDir)
 			sub <- DownloadResourceResp{Err: err, Msg: msg, Index: m.downloadIndex}
+			// m.inputs[3].SetValue(path.Base(m.resources[m.downloadIndex]))
 			m.downloadIndex++
 		}
 		return DownloadResourceResp{Err: nil, Msg: "", Index: m.downloadIndex}
@@ -350,23 +352,6 @@ func (m *model) preloadLastInputs() {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-}
-
-func (m *model) saveLastDownloadKey() {
-	file, err := os.OpenFile("last-download-key.csv", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	// Create a new writer for the CSV file
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// Write the values talentId and key to the CSV file
-	if err := writer.Write([]string{m.inputs[0].Value(), m.resources[m.downloadCount-1]}); err != nil {
 		panic(err)
 	}
 }
