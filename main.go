@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"path"
 
 	"github.com/aarlin/listbucketresult-downloader/client"
 	utils "github.com/aarlin/listbucketresult-downloader/utils"
@@ -213,7 +212,7 @@ func (m model) View() string {
 			return doneStyle.Render(fmt.Sprintf("There were no resources downloaded.\n"))
 		}
 		if m.finishedDownloading {
-			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n - 1))
+			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n-1))
 		}
 
 		resourceCount := fmt.Sprintf(" %*d/%*d", w, m.downloadCount, w, n-1)
@@ -286,7 +285,7 @@ func waitForActivity(sub chan DownloadResourceResp) tea.Cmd {
 
 func (m *model) fetchResources() tea.Cmd {
 
-	bucketUrl := m.inputs[0].Value();
+	bucketUrl := m.inputs[0].Value()
 	if bucketUrl[len(bucketUrl)-1:] != "/" {
 		bucketUrl += "/"
 	}
