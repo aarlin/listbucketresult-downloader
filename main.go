@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
@@ -76,6 +75,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
+			m.saveInputs()
 			return m, tea.Quit
 		case "tab", "shift+tab", "enter", "up", "down", " ":
 			s := msg.String()
@@ -212,7 +212,7 @@ func (m model) View() string {
 			return doneStyle.Render(fmt.Sprintf("There were no resources downloaded.\n"))
 		}
 		if m.finishedDownloading {
-			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n - 1))
+			return doneStyle.Render(fmt.Sprintf("Done! Downloaded %d resources.\n", n-1))
 		}
 
 		resourceCount := fmt.Sprintf(" %*d/%*d", w, m.downloadCount, w, n-1)
@@ -269,6 +269,7 @@ func (m *model) listenForActivity(sub chan DownloadResourceResp) tea.Cmd {
 			folderDir := m.inputs[5].Value()
 			msg, err := m.client.DownloadResource(context.Background(), m.resources[m.downloadIndex], cookieUrl, folderDir)
 			sub <- DownloadResourceResp{Err: err, Msg: msg, Index: m.downloadIndex}
+			// m.inputs[3].SetValue(path.Base(m.resources[m.downloadIndex]))
 			m.downloadIndex++
 		}
 		return DownloadResourceResp{Err: nil, Msg: "", Index: m.downloadIndex}
@@ -284,7 +285,7 @@ func waitForActivity(sub chan DownloadResourceResp) tea.Cmd {
 
 func (m *model) fetchResources() tea.Cmd {
 
-	bucketUrl := m.inputs[0].Value();
+	bucketUrl := m.inputs[0].Value()
 	if bucketUrl[len(bucketUrl)-1:] != "/" {
 		bucketUrl += "/"
 	}
@@ -350,23 +351,6 @@ func (m *model) preloadLastInputs() {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-}
-
-func (m *model) saveLastDownloadKey() {
-	file, err := os.OpenFile("last-download-key.csv", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	// Create a new writer for the CSV file
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// Write the values talentId and key to the CSV file
-	if err := writer.Write([]string{m.inputs[0].Value(), m.resources[m.downloadCount-1]}); err != nil {
 		panic(err)
 	}
 }

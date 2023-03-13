@@ -2,21 +2,20 @@ package client
 
 import (
 	"context"
-    "encoding/xml"
+	"encoding/xml"
 	"fmt"
-	"net/http"
-	"net/url"
-	"net/http/cookiejar"
-	"time"
 	"io"
-	"regexp"
-	"strings"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"path"
+	"regexp"
+	"strings"
+	"time"
 
 	utils "github.com/aarlin/listbucketresult-downloader/utils"
 )
-
 
 type DownloadResourceResp struct {
 	Err error
@@ -28,16 +27,16 @@ type Client struct {
 }
 
 type ListBucketResult struct {
-	XMLName     xml.Name `xml:"ListBucketResult"`
-	Text        string   `xml:",chardata"`
-	Xmlns       string   `xml:"xmlns,attr"`
-	Name        string   `xml:"Name"`
-	Prefix      string   `xml:"Prefix"`
-	Marker      string   `xml:"Marker"`
-	MaxKeys     string   `xml:"MaxKeys"`
-	IsTruncated string   `xml:"IsTruncated"`
+	XMLName     xml.Name  `xml:"ListBucketResult"`
+	Text        string    `xml:",chardata"`
+	Xmlns       string    `xml:"xmlns,attr"`
+	Name        string    `xml:"Name"`
+	Prefix      string    `xml:"Prefix"`
+	Marker      string    `xml:"Marker"`
+	MaxKeys     string    `xml:"MaxKeys"`
+	IsTruncated string    `xml:"IsTruncated"`
 	Contents    []Content `xml:"Contents"`
-} 
+}
 
 type Content struct {
 	Text         string `xml:",chardata"`
@@ -59,7 +58,7 @@ var illegalChars = []string{`<`, `>`, `:`, `"`, `/`, `\`, `|`, `?`, `*`}
 var reservedFilenames = []string{`CON`, `PRN`, `AUX`, `NUL`, `COM1`, `COM2`, `COM3`, `COM4`, `COM5`, `COM6`, `COM7`, `COM8`, `COM9`,
 	`LPT1`, `LPT2`, `LPT3`, `LPT4`, `LPT5`, `LPT6`, `LPT7`, `LPT8`, `LPT9`}
 
-func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query string, cookieUrl string, ignoreText string) ([]string, error) {
+func (mw *Client) SearchBucket(ctx context.Context, bucketUrl string, query string, cookieUrl string, ignoreText string) ([]string, error) {
 	cookies, err := retrieveCookies(cookieUrl)
 
 	if err != nil {
@@ -78,24 +77,24 @@ func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query stri
 	resources := make([]string, 0)
 
 	for hasMoreResults {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, bucketUrl + query, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, bucketUrl+query, nil)
 		if err != nil {
 			return nil, fmt.Errorf("could not create bucket search http request: %w", err)
 		}
 
 		jar.SetCookies(req.URL, cookies)
-	
+
 		resp, err := mw.HTTPClient.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch bucket search: %w", err)
 		}
-	
+
 		defer resp.Body.Close()
-	
+
 		if resp.StatusCode >= 400 {
 			return nil, fmt.Errorf("could not fetch bucket search: status_code=%d url=%s", resp.StatusCode, req.URL)
 		}
-	
+
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("could not read response body: %w", err)
@@ -130,12 +129,12 @@ func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query stri
 				resources = append(resources, fmt.Sprintf("%s%s", bucketUrl, url.QueryEscape(content.Key)))
 			} else if !re.MatchString(content.Key) {
 				resources = append(resources, fmt.Sprintf("%s%s", bucketUrl, url.QueryEscape(content.Key)))
-			} 
+			}
 		}
 
 		markerRe := regexp.MustCompile(`(?i)marker=(\w+)`)
-		lastKeyOffset := contents[len(contents) - 1].Key
-		query = markerRe.ReplaceAllString(query, "marker=" + lastKeyOffset)
+		lastKeyOffset := contents[len(contents)-1].Key
+		query = markerRe.ReplaceAllString(query, "marker="+lastKeyOffset)
 		// hasMoreResults, _ = strconv.ParseBool(bucket.IsTruncated)
 		hasMoreResults = false
 	}
@@ -143,7 +142,7 @@ func (mw* Client) SearchBucket(ctx context.Context, bucketUrl string, query stri
 	return resources, nil
 }
 
-func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cookieUrl string, folderDir string) (string, error) {
+func (mw *Client) DownloadResource(ctx context.Context, resourceUrl string, cookieUrl string, folderDir string) (string, error) {
 	fileName := path.Base(resourceUrl)
 
 	fileName, err := url.QueryUnescape(fileName)
@@ -194,9 +193,9 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 	mw.HTTPClient.Jar = jar
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceUrl, nil)
-    if err != nil {
+	if err != nil {
 		return resourceUrl, err
-    }
+	}
 
 	jar.SetCookies(req.URL, cookies)
 
@@ -209,24 +208,24 @@ func (mw* Client) DownloadResource(ctx context.Context, resourceUrl string, cook
 		return resourceUrl, err
 	}
 
-    defer resp.Body.Close()
+	defer resp.Body.Close()
 
-	mkdirErr := os.MkdirAll(storageDirectory , os.ModePerm) 
+	mkdirErr := os.MkdirAll(storageDirectory, os.ModePerm)
 
 	if mkdirErr != nil {
 		// TODO: ignore?
-    }
+	}
 
-    file, err := os.Create(storageDirectory + fileName)
-    if err != nil {
+	file, err := os.Create(storageDirectory + fileName)
+	if err != nil {
 		return resourceUrl, err
-    }
-    defer file.Close()
+	}
+	defer file.Close()
 
-    _, err = io.Copy(file, resp.Body)
-    if err != nil {
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
 		return resourceUrl, err
-    }
+	}
 
 	return resourceUrl, nil
 }
